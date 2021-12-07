@@ -469,7 +469,7 @@ elmPagesCodeGen model =
                     "D.fail \"TODO you can create a decoder through the UI above\""
 
                 FusionType mtype ->
-                    Fusion.Json.decoderFromMType 0 mtype
+                    Fusion.Json.decoderFromMType 0 mtype |> Tuple.first
     in
     """import DataSource.Http
 import Pages.Secrets
@@ -496,7 +496,7 @@ elmHttpCodeGen model =
                             "D.fail \"TODO you can create a decoder through the UI above\""
 
                         FusionType mType ->
-                            Fusion.Json.decoderFromMType 0 mType
+                            Fusion.Json.decoderFromMType 0 mType |> Tuple.first
                     )
                         |> indent
                    )

@@ -25,7 +25,7 @@ view =
     in
     row [ width fill, Font.family [ Font.monospace ] ]
         [ el [ width fill, alignTop ] <| text expected
-        , el [ width fill, alignTop ] <| text result
+        , el [ width fill, alignTop ] <| text (Tuple.first result)
         ]
 
 
@@ -45,6 +45,7 @@ suite =
                         String.lines f |> Expect.equal (String.lines s)
                 in
                 result
+                    |> Tuple.first
                     |> expectUnlines expected
         ]
 

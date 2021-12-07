@@ -36,8 +36,9 @@ leaves =
 
 branches : Int -> List ( Float, Fuzzer Json.Value )
 branches maxDepth =
-    [ ( 1, Fuzz.map (Encoder.list identity) (Fuzz.list (rawJson maxDepth)) )
-    , ( 1, Fuzz.map Encoder.object (Fuzz.list (objectEntry maxDepth)) )
+    [ -- ( 1, Fuzz.map (Encoder.list identity) (Fuzz.list (rawJson maxDepth)) )
+      ( 1, Fuzz.map Encoder.object (Fuzz.list (objectEntry maxDepth)) )
+    , ( 1, Fuzz.map (Encoder.list identity) (rawJson maxDepth |> Fuzz.map List.singleton) )
     ]
 
 

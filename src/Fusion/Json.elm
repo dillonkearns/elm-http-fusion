@@ -2,10 +2,16 @@ module Fusion.Json exposing (..)
 
 import Fusion.Types exposing (..)
 import Helpers exposing (..)
+import Json.Decode as D exposing (Decoder)
 import List.Extra as List
 
 
-decoderFromMType : Int -> MType -> String
+unit : Decoder a -> Decoder ()
+unit =
+    D.map (\_ -> ())
+
+
+decoderFromMType : Int -> MType -> ( String, Decoder () )
 decoderFromMType indent mtype =
     let
         recurse =
@@ -16,22 +22,26 @@ decoderFromMType indent mtype =
     in
     case mtype of
         MInt jp ->
-            "D.int"
+            ( "D.int", D.int |> unit )
 
         MFloat jp ->
-            "D.float"
+            ( "D.float", D.float |> unit )
 
         MString jp ->
-            "D.string"
+            ( "D.string", D.string |> unit )
 
         MBool jp ->
-            "D.bool"
+            ( "D.bool", D.bool |> unit )
 
         MList mtype_ jp ->
-            "D.list (" ++ recurse mtype_ ++ ")"
+            let
+                ( first, second ) =
+                    recurse mtype_
+            in
+            ( "D.list (" ++ first ++ ")", D.list second |> unit )
 
         MCustom name tParams params jp ->
-            "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\""
+            ( "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\"", D.fail "Not implemented" )
 
         MRecord name tParams fields jp ->
             case name of
@@ -60,9 +70,9 @@ decoderFromMType indent mtype =
                                 |> (\v -> v ++ [ i ++ tab ++ tab ++ "}" ])
                     in
                     -- This record is not yet named, used anonymous record syntax
-                    ([ "D.succeed"
-                     , i ++ tab ++ anonymousFunction ++ " ->"
-                     ]
+                    ( ([ "D.succeed"
+                       , i ++ tab ++ anonymousFunction ++ " ->"
+                       ]
                         ++ anonymousRecord
                         ++ [ i ++ tab ++ ")" ]
                         ++ (fields
@@ -71,31 +81,41 @@ decoderFromMType indent mtype =
                                         i ++ tab ++ "|> required \"" ++ fieldName ++ "\"" ++ parenthesisIfNeeded indent t
                                     )
                            )
-                    )
+                      )
                         |> String.join "\n"
+                    , fields
+                        |> List.foldl (\( fieldName, t ) soFar -> soFar |> required fieldName (recurse t |> Tuple.second))
+                            (D.succeed ())
+                    )
 
                 _ ->
-                    ([ "D.succeed " ++ name
-                     ]
-                        ++ (fields |> List.map (\( fieldName, t ) -> i ++ tab ++ "|> required \"" ++ fieldName ++ "\" " ++ recurse t))
-                    )
+                    ( ([ "D.succeed " ++ name
+                       ]
+                        ++ (fields |> List.map (\( fieldName, t ) -> i ++ tab ++ "|> required \"" ++ fieldName ++ "\" " ++ Tuple.first (recurse t)))
+                      )
                         |> String.join "\n"
+                    , D.fail "TODO 2"
+                    )
 
         MParam name ->
             if name == "unknown" then
-                "(Debug.crash \"unspecified type\")"
+                ( "(Debug.crash \"unspecified type\")", D.fail "Unimplemented" )
 
             else
-                "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\""
+                ( "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\"", D.fail "Unimplemented" )
 
         MMaybe mtype_ jp ->
-            "(D.nullable " ++ recurse mtype_ ++ ")"
+            let
+                ( first, second ) =
+                    recurse mtype_
+            in
+            ( "(D.nullable " ++ first ++ ")", D.nullable second |> unit )
 
         MRecursive name ->
-            "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\""
+            ( "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\"", D.fail "Unimplemented" )
 
         MUnimplemented ->
-            "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\""
+            ( "Debug.crash \"unimplemented decoderFromMType: " ++ toString mtype ++ "\"", D.fail "Unimplemented" )
 
 
 parenthesisIfNeeded indent mtype =
@@ -110,10 +130,10 @@ parenthesisIfNeeded indent mtype =
 
         fn =
             if needed then
-                decoderFromMType (indent + 2)
+                decoderFromMType (indent + 2) >> Tuple.first
 
             else
-                decoderFromMType (indent + 1)
+                decoderFromMType (indent + 1) >> Tuple.first
 
         i =
             String.repeat (indent * tabSize) " "
@@ -131,6 +151,11 @@ tab =
 
 tabSize =
     4
+
+
+required : String -> Decoder () -> Decoder () -> Decoder ()
+required key valDecoder decoder =
+    D.map2 (\_ _ -> ()) (D.field key valDecoder) decoder
 
 
 getValue : JsonPath -> JsonValue -> Maybe JsonValue
